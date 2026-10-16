@@ -3,6 +3,7 @@ import { api, internal } from "./_generated/api";
 import Stripe from 'stripe';
 import { Id } from "./_generated/dataModel";
 import { v } from "convex/values";
+import { getSubscriptionPeriodEnd, getInvoiceSubscription } from './stripe-subscription-period';
 
 export const pay = action({
     args: {},
@@ -19,7 +20,7 @@ export const pay = action({
         }
 
         const stripe = new Stripe(process.env.NEXT_STRIPE_SECRET_KEY!, {
-            apiVersion: "2023-10-16"
+            apiVersion: "2026-09-30.endive"
         });
 
         const domain = process.env.NEXT_PUBLIC_HOSTING_URL!;
@@ -54,7 +55,7 @@ export const fulfill = internalAction({
     args: { signature: v.string(), payload: v.string() },
     handler: async ({ runQuery, runMutation }, { signature, payload }) => {
         const stripe = new Stripe(process.env.NEXT_STRIPE_SECRET_KEY!, {
-            apiVersion: "2023-10-16",
+            apiVersion: "2026-09-30.endive",
         });
 
         const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET as string;
@@ -78,18 +79,18 @@ export const fulfill = internalAction({
                 await runMutation(internal.users.updateSubscription, {
                     userId,
                     subscriptionId: subscription.id,
-                    endsOn: subscription.current_period_end * 1000,
+                    endsOn: (getSubscriptionPeriodEnd(subscription)) * 1000,
                 });
             }
 
             if (event.type === "invoice.payment_succeeded") {
                 const subscription = await stripe.subscriptions.retrieve(
-                    completedEvent.subscription as string
+                    (getInvoiceSubscription(completedEvent)) as string
                 );
 
                 await runMutation(internal.users.updateSubscriptionById, {
                     subscriptionId: subscription.id,
-                    endsOn: subscription.current_period_end * 1000,
+                    endsOn: (getSubscriptionPeriodEnd(subscription)) * 1000,
                 });
             }
 
